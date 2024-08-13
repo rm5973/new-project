@@ -42,7 +42,7 @@ const employeeSchema = new mongoose.Schema({
   mobile_no: String,
   designation: String,
   gender: String,
-  course: String,
+  course: [String],
   created_date: Date,
   image: String,
 });
@@ -166,6 +166,34 @@ app.delete('/api/employees/:id', async (req, res) => {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
+
+app.post('/api/employees/:id/delete-courses', async (req, res) => {
+  try {
+    // Extract employee ID and courses to delete from the request
+    const { courses } = req.body;
+    
+    // Update employee record to remove the specified courses
+    await Employee.updateOne(
+      { _id: req.params.id },
+      { $pull: { course: { $in: courses } } }
+    );
+
+    res.status(200).send('Courses deleted successfully');
+  } catch (error) {
+    res.status(400).json({ error: 'Error deleting courses' });
+  }
+});
+
+app.put('/api/employees/:id', async (req, res) => {
+  try {
+    // Update employee record with the new data
+    const updatedEmployee = await Employee.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    res.json(updatedEmployee);
+  } catch (error) {
+    res.status(400).json({ error: 'Error updating employee' });
+  }
+});
+
 
 // Serve uploaded images
 app.use('/uploads', express.static(uploadDir));

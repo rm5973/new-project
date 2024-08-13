@@ -10,7 +10,7 @@ const Dashboard = ({ user, onLogout }) => {
     mobile_no: '',
     designation: '',
     gender: '',
-    course: '',
+    course: [],
     created_date: '',
     image: null,
   });
@@ -59,6 +59,21 @@ const Dashboard = ({ user, onLogout }) => {
     setFilteredEmployees(updatedEmployees);
   }, [searchTerm, sortAttribute, employees]);
 
+  useEffect(() => {
+    if (view === 'edit' && editingEmployee) {
+      setFormData({
+        name: editingEmployee.name,
+        email: editingEmployee.email,
+        mobile_no: editingEmployee.mobile_no,
+        designation: editingEmployee.designation,
+        gender: editingEmployee.gender,
+        course: editingEmployee.course || [],
+        created_date: new Date(editingEmployee.created_date).toISOString().split('T')[0],
+        image: null,
+      });
+    }
+  }, [view, editingEmployee]);
+
   const handleLogout = () => {
     onLogout();
     navigate('/login');
@@ -69,28 +84,63 @@ const Dashboard = ({ user, onLogout }) => {
     setFormData({ ...formData, [name]: value });
   };
 
+  const handleCheckboxChange = (e) => {
+    const { value, checked } = e.target;
+    setFormData((prevData) => ({
+      ...prevData,
+      course: checked
+        ? [...prevData.course, value]
+        : prevData.course.filter((course) => course !== value),
+    }));
+  };
+
   const handleFileChange = (e) => {
     setFormData({ ...formData, image: e.target.files[0] });
   };
 
   const handleFormSubmit = async (e) => {
     e.preventDefault();
+    
+    // Create a new FormData object for employee data
     const data = new FormData();
-    for (const key in formData) {
-      data.append(key, formData[key]);
+    
+    // Clear existing courses in the data if in edit mode
+    if (view === 'edit' && editingEmployee) {
+      data.append('courses', ''); // Send an empty array to clear existing courses
     }
-
+  
+    // Add new data to FormData
+    for (const key in formData) {
+      if (formData[key] !== null && formData[key] !== undefined) {
+        // Special handling for courses
+        if (key === 'course') {
+          // Add each course separately
+          formData[key].forEach(course => data.append('course', course));
+        } else {
+          data.append(key, formData[key]);
+        }
+      }
+    }
+  
     try {
       if (view === 'create') {
+        // Create a new employee
         await axios.post('/api/employees', data, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
       } else if (view === 'edit' && editingEmployee) {
+        // Step 1: Delete existing courses
+        await axios.post(`/api/employees/${editingEmployee._id}/delete-courses`, {
+          courses: editingEmployee.course,
+        });
+      
+        // Step 2: Update employee with new data
         await axios.put(`/api/employees/${editingEmployee._id}`, data, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
       }
-
+  
+      // Refresh employee list and reset form state
       setView('list');
       setFormData({
         name: '',
@@ -98,7 +148,7 @@ const Dashboard = ({ user, onLogout }) => {
         mobile_no: '',
         designation: '',
         gender: '',
-        course: '',
+        course: [],
         created_date: '',
         image: null,
       });
@@ -107,19 +157,14 @@ const Dashboard = ({ user, onLogout }) => {
       console.error('Error saving employee:', error);
     }
   };
+  
+  
+  
+  
+  
 
   const handleEdit = (employee) => {
     setEditingEmployee(employee);
-    setFormData({
-      name: employee.name,
-      email: employee.email,
-      mobile_no: employee.mobile_no,
-      designation: employee.designation,
-      gender: employee.gender,
-      course: employee.course,
-      created_date: new Date(employee.created_date).toISOString().split('T')[0],
-      image: null,
-    });
     setView('edit');
   };
 
@@ -227,38 +272,53 @@ const Dashboard = ({ user, onLogout }) => {
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedEmployees.map((employee) => (
-                    <tr key={employee._id}>
-                      <td className="border px-4 py-2">{employee._id}</td>
-                      <td className="border px-4 py-2">
-                        {employee.image && (
-                          <img src={`/${employee.image}`} alt={employee.name} className="w-10 h-10 rounded-full" />
-                        )}
-                      </td>
-                      <td className="border px-4 py-2">{employee.name}</td>
-                      <td className="border px-4 py-2">{employee.email}</td>
-                      <td className="border px-4 py-2">{employee.mobile_no}</td>
-                      <td className="border px-4 py-2">{employee.designation}</td>
-                      <td className="border px-4 py-2">{employee.gender}</td>
-                      <td className="border px-4 py-2">{employee.course}</td>
-                      <td className="border px-4 py-2">{new Date(employee.created_date).toLocaleDateString()}</td>
-                      <td className="border px-4 py-2">
-                        <button
-                          className="bg-blue-500 text-white px-2 py-1 rounded mr-2"
-                          onClick={() => handleEdit(employee)}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          className="bg-red-500 text-white px-2 py-1 rounded"
-                          onClick={() => handleDelete(employee._id)}
-                        >
-                          Delete
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
+  {paginatedEmployees.map((employee) => {
+    // Define the base path you want to remove
+    const basePath = 'C:\\Users\\dexte\\OneDrive\\Desktop\\new-project\\'; // Adjust this path as needed
+
+    // Remove the base path from employee.image if it starts with it
+    const imagePath = employee.image.startsWith(basePath) 
+      ? employee.image.substring(basePath.length) 
+      : employee.image;
+
+    return (
+      <tr key={employee._id}>
+        <td className="border px-4 py-2">{employee._id}</td>
+        <td className="border px-4 py-2">
+          {employee.image && (
+            <img 
+              src={`/${imagePath}`} // Use the modified path
+              alt={employee.name} 
+              className="w-10 h-10 rounded-full" 
+            />
+          )}
+        </td>
+        <td className="border px-4 py-2">{employee.name}</td>
+        <td className="border px-4 py-2">{employee.email}</td>
+        <td className="border px-4 py-2">{employee.mobile_no}</td>
+        <td className="border px-4 py-2">{employee.designation}</td>
+        <td className="border px-4 py-2">{employee.gender}</td>
+        <td className="border px-4 py-2">{employee.course.join(', ')}</td>
+        <td className="border px-4 py-2">{new Date(employee.created_date).toLocaleDateString()}</td>
+        <td className="border px-4 py-2">
+          <button
+            className="bg-blue-500 text-white px-2 py-1 rounded mr-2"
+            onClick={() => handleEdit(employee)}
+          >
+            Edit
+          </button>
+          <button
+            className="bg-red-500 text-white px-2 py-1 rounded"
+            onClick={() => handleDelete(employee._id)}
+          >
+            Delete
+          </button>
+        </td>
+      </tr>
+    );
+  })}
+</tbody>
+
               </table>
               <div className="mt-4 flex justify-between items-center">
                 <button
@@ -317,13 +377,18 @@ const Dashboard = ({ user, onLogout }) => {
             </div>
             <div className="mb-4">
               <label className="block text-gray-700 mb-2">Designation</label>
-              <input
-                type="text"
+              <select
                 name="designation"
                 value={formData.designation}
                 onChange={handleInputChange}
-                className="border p-2 rounded w-full"
-              />
+                className="w-full border p-2 rounded"
+                required
+              >
+                <option value="">Select Designation</option>
+                <option value="HR">HR</option>
+                <option value="Manager">Manager</option>
+                <option value="Sales">Sales</option>
+              </select>
             </div>
             <div className="mb-4">
               <label className="block text-gray-700 mb-2">Gender</label>
@@ -341,13 +406,38 @@ const Dashboard = ({ user, onLogout }) => {
             </div>
             <div className="mb-4">
               <label className="block text-gray-700 mb-2">Course</label>
-              <input
-                type="text"
-                name="course"
-                value={formData.course}
-                onChange={handleInputChange}
-                className="border p-2 rounded w-full"
-              />
+              <div className="flex flex-col">
+                <label className="inline-flex items-center mt-2">
+                  <input
+                    type="checkbox"
+                    value="MCA"
+                    checked={formData.course.includes('MCA')}
+                    onChange={handleCheckboxChange}
+                    className="form-checkbox h-5 w-5 text-blue-600"
+                  />
+                  <span className="ml-2 text-gray-700">MCA</span>
+                </label>
+                <label className="inline-flex items-center mt-2">
+                  <input
+                    type="checkbox"
+                    value="BCA"
+                    checked={formData.course.includes('BCA')}
+                    onChange={handleCheckboxChange}
+                    className="form-checkbox h-5 w-5 text-blue-600"
+                  />
+                  <span className="ml-2 text-gray-700">BCA</span>
+                </label>
+                <label className="inline-flex items-center mt-2">
+                  <input
+                    type="checkbox"
+                    value="BSc"
+                    checked={formData.course.includes('BSc')}
+                    onChange={handleCheckboxChange}
+                    className="form-checkbox h-5 w-5 text-blue-600"
+                  />
+                  <span className="ml-2 text-gray-700">BSc</span>
+                </label>
+              </div>
             </div>
             <div className="mb-4">
               <label className="block text-gray-700 mb-2">Created Date</label>
